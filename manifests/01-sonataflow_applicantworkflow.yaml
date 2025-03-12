@@ -1,0 +1,78 @@
+apiVersion: sonataflow.org/v1alpha08
+kind: SonataFlow
+metadata:
+  annotations:
+    sonataflow.org/description: ""
+    sonataflow.org/expressionLang: jsonpath
+    sonataflow.org/profile: dev
+    sonataflow.org/version: "1.0"
+  creationTimestamp: null
+  labels:
+    app: applicantworkflow
+    app.kubernetes.io/component: serverless-workflow
+    app.kubernetes.io/managed-by: sonataflow-operator
+    app.kubernetes.io/name: applicantworkflow
+    sonataflow.org/workflow-app: applicantworkflow
+    sonataflow.org/workflow-namespace: default
+  name: applicantworkflow
+  namespace: default
+spec:
+  flow:
+    events:
+    - dataOnly: true
+      kind: consumed
+      name: NewApplicantEvent
+      type: applicants
+    - dataOnly: true
+      kind: consumed
+      name: ApplicantDecisionEvent
+      type: decisions
+    start:
+      stateName: HandleNewApplicant
+    states:
+    - exclusive: true
+      name: HandleNewApplicant
+      onEvents:
+      - actionMode: sequential
+        eventDataFilter:
+          useData: true
+        eventRefs:
+        - NewApplicantEvent
+      transition:
+        nextState: VerifyNewApplicant
+      type: event
+    - dataConditions:
+      - condition: '{{ $.[?(@.salary >= 3000)] }}'
+        transition:
+          nextState: HandleApproved
+      - condition: '{{ $.[?(@.salary < 3000)] }}'
+        transition:
+          nextState: HandleDenied
+      defaultCondition:
+        transition:
+          nextState: HandleDenied
+      name: VerifyNewApplicant
+      type: switch
+    - data:
+        decision: Approved
+      end:
+        produceEvents:
+        - data: null
+          eventRef: ApplicantDecisionEvent
+      name: HandleApproved
+      type: inject
+    - data:
+        decision: Denied
+      end:
+        produceEvents:
+        - data: null
+          eventRef: ApplicantDecisionEvent
+      name: HandleDenied
+      type: inject
+  podTemplate:
+    container:
+      resources: {}
+  resources: {}
+status:
+  address: {}
+  lastTimeRecoverAttempt: null
